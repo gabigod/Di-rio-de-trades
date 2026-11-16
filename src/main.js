@@ -110,9 +110,16 @@ function calendar(list) {
       const a = Math.min(1, .25 + Math.abs(r) / 4);
       bg = `style="background:${r > 0 ? `rgba(0,212,146,${a * .5})` : r < 0 ? `rgba(255,77,103,${a * .5})` : 'rgba(142,142,153,.25)'}"`;
     }
-    html += `<div class="d ${r !== undefined ? 'has' : ''}" ${bg}>${d}</div>`;
+    html += `<div class="d ${r !== undefined ? 'has' : ''}" ${bg} ${r !== undefined ? `data-day="${key}"` : ''}>${d}</div>`;
   }
   $('#cal').innerHTML = html;
+  $('#cal').querySelectorAll('[data-day]').forEach(el => el.onclick = () => {
+    const day = el.dataset.day;
+    const dias = list.filter(t => t.date === day);
+    const sum = dias.reduce((a, t) => a + (+t.r || 0), 0);
+    const sh = openSheet(`<h2>${D.fmtDate(day)} · <span class="${rCls(sum)} num">${D.fmtR(sum)}</span></h2>` + dias.map(trow).join(''));
+    bindRows(sh);
+  });
   $('#cal-prev').onclick = () => { calYM = M ? [Y, M - 1] : [Y - 1, 11]; calendar(list); };
   $('#cal-next').onclick = () => { calYM = M < 11 ? [Y, M + 1] : [Y + 1, 0]; calendar(list); };
 }
@@ -219,10 +226,16 @@ views.novo = () => {
 };
 function editSheet(t) {
   const sh = openSheet(`<h2>${esc(t.asset)} · ${D.fmtDate(t.date)}</h2>${tradeForm(t)}
+    <button class="btn ghost" style="margin-bottom:10px" id="f-chart">Ver no gráfico (Gráficos FX)</button>
     ${t.link ? `<button class="btn ghost" style="margin-bottom:10px" id="f-open">Abrir print do trade</button>` : ''}
     <div class="btns-r"><button class="btn danger" id="f-del">Apagar</button><button class="btn" id="f-upd">Salvar</button></div>`);
   bindForm(sh);
   sh.querySelector('#f-open')?.addEventListener('click', () => window.open(t.link, '_blank'));
+  sh.querySelector('#f-chart').onclick = () => {
+    location.href = 'graficosfx://open?symbol=' + encodeURIComponent((t.asset || '').replace(/[^A-Za-z0-9]/g, '')) +
+      '&date=' + t.date + '&result=' + encodeURIComponent(t.result || '') + '&r=' + encodeURIComponent(t.r ?? '');
+    setTimeout(() => toast('Precisa do app Gráficos FX instalado'), 1200);
+  };
   sh.querySelector('#f-upd').onclick = () => { const p = readForm(sh); if (!p) return; D.update(t._id, p); closeSheet(); toast('Atualizado ✓'); go(cur); };
   sh.querySelector('#f-del').onclick = () => { if (confirm('Apagar este trade?')) { D.remove(t._id); closeSheet(); toast('Apagado'); go(cur); } };
 }
