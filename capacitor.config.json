@@ -1,0 +1,6 @@
+{
+  "appId": "com.tem.diariotrades",
+  "appName": "Diário de Trades",
+  "webDir": "dist",
+  "plugins": { "SystemBars": { "insetsHandling": "css", "style": "DARK" } }
+}

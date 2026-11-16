@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>Diário de Trades</title>
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div id="app">
+    <main id="view"></main>
+    <nav class="tabbar">
+      <button data-v="painel" class="on"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM4 20h6v-5H4zM14 20h6v-9h-6zM14 4v5h6V4z"/></svg><span>Painel</span></button>
+      <button data-v="trades"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Trades</span></button>
+      <button data-v="novo" class="add"><span class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span></button>
+      <button data-v="stats"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span>Stats</span></button>
+      <button data-v="config"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M4.9 19.1l2.2-2.2M16.9 7.1l2.2-2.2"/></svg><span>Ajustes</span></button>
+    </nav>
+    <div class="toast" id="toast"></div>
+    <div class="modal" id="modal" hidden><div class="sheet" id="sheet"></div></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
