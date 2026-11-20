@@ -1,68 +1,68 @@
-// Dados do diário: ficam no aparelho (localStorage), com backup por exportar/importar.
+// Trades do diário. Ficam no aparelho (localStorage); as fotos ficam em photos.js.
 import seed from './seed.json';
+import seedPhotos from './seedPhotos.json';
+import { uid } from './util.js';
+import { setQuotaHandler } from './store.js';
 
 const KEY = 'dt:trades';
-const uid = () => 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-export function load() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* */ }
-  // primeira vez: importa o histórico vindo da planilha
-  const t = seed.map(s => ({ ...s }));
-  save(t);
-  return t;
+export const DEFAULT_CONF = ['COT', 'Yield', 'Força', 'DXY', 'Varejo', 'Tendência D1'];
+export const DEFAULT_TAGS = ['FOMO', 'Entrou cedo', 'Entrou tarde', 'Moveu o stop', 'Fechou antes', 'Risco maior', 'Sem plano'];
+export const MOODS = [
+  { k: 'calmo', e: '😌', t: 'Calmo' }, { k: 'confiante', e: '😎', t: 'Confiante' },
+  { k: 'ansioso', e: '😰', t: 'Ansioso' }, { k: 'cansado', e: '😴', t: 'Cansado' }, { k: 'irritado', e: '😤', t: 'Irritado' },
+];
+export const PHOTO_LABELS = ['Entrada', 'Saída', 'Setup', 'Extra'];
+
+let quotaWarned = false;
+setQuotaHandler(() => { if (!quotaWarned) { quotaWarned = true; window.dispatchEvent(new CustomEvent('dt:quota')); } });
+
+const subs = new Set();
+export const onChange = fn => { subs.add(fn); return () => subs.delete(fn); };
+const emit = () => subs.forEach(f => { try { f(); } catch { /* */ } });
+
+function save(list = trades) {
+  try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { window.dispatchEvent(new CustomEvent('dt:quota')); }
 }
-export function save(trades) { try { localStorage.setItem(KEY, JSON.stringify(trades)); } catch { /* */ } }
+
+const seedPhotoOf = t => { const sp = seedPhotos[t._id]; return sp ? [{ id: 'tv:' + sp.tv, label: 'Entrada', w: sp.w, h: sp.h }] : []; };
+
+function load() {
+  let list = null;
+  try { const raw = localStorage.getItem(KEY); if (raw) list = JSON.parse(raw); } catch { /* */ }
+  let changed = false;
+  if (!Array.isArray(list)) { list = seed.map(s => ({ ...s })); changed = true; }
+  for (const t of list) {
+    // v0.2: cada trade passa a ter fotos. Os prints do TradingView do histórico já vêm dentro do app.
+    if (!Array.isArray(t.photos)) { t.photos = seedPhotoOf(t); changed = true; }
+    if (t.createdAt === undefined) { t.createdAt = Date.now(); changed = true; }
+  }
+  if (changed) save(list);
+  return list;
+}
 
 export let trades = load();
-export function add(t) { t._id = uid(); t.createdAt = Date.now(); trades.push(t); sort(); save(trades); }
-export function update(id, patch) { const t = trades.find(x => x._id === id); if (t) Object.assign(t, patch); sort(); save(trades); }
-export function remove(id) { trades = trades.filter(x => x._id !== id); save(trades); }
-export function replaceAll(list) { trades = list; sort(); save(trades); }
 function sort() { trades.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.createdAt || 0) - (b.createdAt || 0)); }
 sort();
 
+export const byId = id => trades.find(x => x._id === id);
+export function add(t) {
+  t._id = uid('t'); t.createdAt = Date.now(); if (!Array.isArray(t.photos)) t.photos = [];
+  trades.push(t); sort(); save(); emit(); return t;
+}
+export function update(id, patch) { const t = byId(id); if (t) Object.assign(t, patch); sort(); save(); emit(); return t; }
+export function remove(id) { trades = trades.filter(x => x._id !== id); save(); emit(); }
+export function replaceAll(list) {
+  // backups antigos não tinham fotos: os prints do histórico voltam a ser ligados pelo id do trade
+  trades = list.map(t => ({ ...t, photos: Array.isArray(t.photos) ? t.photos : seedPhotoOf(t), createdAt: t.createdAt || Date.now() })); sort(); save(); emit();
+}
+export function touch() { save(); emit(); }
+
 export const years = () => [...new Set(trades.map(t => t.date.slice(0, 4)))].sort().reverse();
 export const uniq = f => [...new Set(trades.map(t => (t[f] || '').trim()).filter(Boolean))].sort();
-export const fmtR = r => (r > 0 ? '+' : '') + (+r).toFixed(2).replace(/\.?0+$/, '') + 'R';
-export const fmtDate = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y.slice(2)}`; };
-export const WD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-export const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-export const dow = d => new Date(d + 'T12:00:00Z').getUTCDay();
-
-// ---------- estatísticas ----------
-export function stats(list) {
-  const n = list.length;
-  const wins = list.filter(t => t.result === 'WIN');
-  const losses = list.filter(t => t.result === 'LOSS');
-  const be = n - wins.length - losses.length;
-  const closed = wins.length + losses.length;
-  const sumR = list.reduce((a, t) => a + (+t.r || 0), 0);
-  const gw = wins.reduce((a, t) => a + (+t.r || 0), 0);
-  const gl = -losses.reduce((a, t) => a + (+t.r || 0), 0);
-  // curva e drawdown
-  let cum = 0, peak = 0, maxDD = 0, ddStart = null;
-  const curve = list.map(t => { cum += (+t.r || 0); peak = Math.max(peak, cum); maxDD = Math.max(maxDD, peak - cum); return { date: t.date, cum, dd: peak - cum }; });
-  // sequências
-  let curStreak = 0, bestW = 0, bestL = 0, run = 0, last = null;
-  for (const t of list) {
-    if (t.result !== 'WIN' && t.result !== 'LOSS') continue;
-    if (t.result === last) run++; else run = 1;
-    last = t.result;
-    if (t.result === 'WIN') bestW = Math.max(bestW, run); else bestL = Math.max(bestL, run);
-  }
-  if (last) { curStreak = run * (last === 'WIN' ? 1 : -1); }
-  const winrate = closed ? wins.length / closed * 100 : 0;
-  const avgW = wins.length ? gw / wins.length : 0;
-  const avgL = losses.length ? gl / losses.length : 0;
-  const pf = gl > 0 ? gw / gl : (gw > 0 ? Infinity : 0);
-  const exp = closed ? (gw - gl) / closed : 0;
-  return { n, wins: wins.length, losses: losses.length, be, closed, sumR, winrate, avgW, avgL, pf, exp, maxDD, curve, curStreak, bestW, bestL };
-}
-export function groupBy(list, keyFn) {
-  const m = new Map();
-  for (const t of list) { const k = keyFn(t) || '—'; (m.get(k) || m.set(k, []).get(k)).push(t); }
-  return [...m.entries()].map(([k, v]) => ({ key: k, ...stats(v) }));
-}
+export const countBy = f => { const m = {}; trades.forEach(t => { const k = (t[f] || '').trim(); if (k) m[k] = (m[k] || 0) + 1; }); return m; };
+/** Todos os ids de foto que algum trade usa (para limpar o que sobrou no aparelho). */
+export const usedPhotoIds = () => new Set(trades.flatMap(t => (t.photos || []).map(p => p.id)));
+/** Primeiro link do TradingView que ainda não virou foto. */
+export const TV_RE = /tradingview\.com\/x\/([A-Za-z0-9]+)/i;
+export const pendingLinks = () => trades.filter(t => (t.photos || []).length === 0 && TV_RE.test(t.link || ''));

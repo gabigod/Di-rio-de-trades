@@ -53,7 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v0.1.${{ github.run_number }}"
+          TAG="v0.2.${{ github.run_number }}"
           gh release create "$TAG" DiarioDeTrades.apk \
             --title "Diário de Trades $TAG" \
             --notes "Baixe o arquivo DiarioDeTrades.apk no celular e instale. Versão gerada a partir do commit ${GITHUB_SHA::7}." \
